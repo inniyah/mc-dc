@@ -54,6 +54,22 @@ class Tri:
         """
         return Tri(f(self.v1), f(self.v2), f(self.v3))
 
+    def swap(self, swap=True):
+        """Optionally reverses the vertex order of the triangle.
+
+        Reversing the order of the vertices changes the orientation of the triangle, 
+        which is important in certain contexts such as defining surface normals.
+
+        Parameters:
+        swap (bool): If True, the vertices are reversed.
+
+        Returns:
+        Tri: The original or reversed quadrilateral, depending on the `swap` parameter.
+        """
+        if swap:
+            return Tri(self.v3, self.v2, self.v1)
+        else:
+            return Tri(self.v1, self.v2, self.v3)
 
 class Quad:
     """A 3D quadrilateral defined by four vertices.

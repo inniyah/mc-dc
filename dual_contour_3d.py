@@ -6,9 +6,11 @@ from common import adapt, frange
 from settings import ADAPTIVE, XMIN, XMAX, YMIN, YMAX, ZMIN, ZMAX, CELL_SIZE
 import numpy as np
 import math
-from utils_3d import V3, Quad, Mesh, make_obj
+from utils_3d import V3, Tri, Quad, Mesh, make_obj
 from qef import solve_qef_3d
 
+# Define this to use triangles instead of quadrilaterals.
+USE_TRI = False
 
 def dual_contour_3d_find_best_vertex(f, f_normal, x, y, z):
     """
@@ -114,8 +116,20 @@ def dual_contour_3d(f, f_normal, xmin=XMIN, xmax=XMAX, ymin=YMIN, ymax=YMAX, zmi
                     solid1 = f(x, y, z + 0) > 0
                     solid2 = f(x, y, z + CELL_SIZE) > 0
                     if solid1 != solid2:
+                      if not USE_TRI:
                         faces.append(Quad(
                             vert_indices[(ix - 1, iy - 1, iz)],
+                            vert_indices[(ix - 0, iy - 1, iz)],
+                            vert_indices[(ix - 0, iy - 0, iz)],
+                            vert_indices[(ix - 1, iy - 0, iz)],
+                        ).swap(solid2))
+                      else:
+                        faces.append(Tri(
+                            vert_indices[(ix - 1, iy - 1, iz)],
+                            vert_indices[(ix - 0, iy - 1, iz)],
+                            vert_indices[(ix - 1, iy - 0, iz)],
+                        ).swap(solid2))
+                        faces.append(Tri(
                             vert_indices[(ix - 0, iy - 1, iz)],
                             vert_indices[(ix - 0, iy - 0, iz)],
                             vert_indices[(ix - 1, iy - 0, iz)],
@@ -124,8 +138,20 @@ def dual_contour_3d(f, f_normal, xmin=XMIN, xmax=XMAX, ymin=YMIN, ymax=YMAX, zmi
                     solid1 = f(x, y + 0, z) > 0
                     solid2 = f(x, y + CELL_SIZE, z) > 0
                     if solid1 != solid2:
+                      if not USE_TRI:
                         faces.append(Quad(
                             vert_indices[(ix - 1, iy, iz - 1)],
+                            vert_indices[(ix - 0, iy, iz - 1)],
+                            vert_indices[(ix - 0, iy, iz - 0)],
+                            vert_indices[(ix - 1, iy, iz - 0)],
+                        ).swap(solid1))
+                      else:
+                        faces.append(Tri(
+                            vert_indices[(ix - 1, iy, iz - 1)],
+                            vert_indices[(ix - 0, iy, iz - 1)],
+                            vert_indices[(ix - 1, iy, iz - 0)],
+                        ).swap(solid1))
+                        faces.append(Tri(
                             vert_indices[(ix - 0, iy, iz - 1)],
                             vert_indices[(ix - 0, iy, iz - 0)],
                             vert_indices[(ix - 1, iy, iz - 0)],
@@ -134,13 +160,24 @@ def dual_contour_3d(f, f_normal, xmin=XMIN, xmax=XMAX, ymin=YMIN, ymax=YMAX, zmi
                     solid1 = f(x + 0, y, z) > 0
                     solid2 = f(x + CELL_SIZE, y, z) > 0
                     if solid1 != solid2:
+                      if not USE_TRI:
                         faces.append(Quad(
                             vert_indices[(ix, iy - 1, iz - 1)],
                             vert_indices[(ix, iy - 0, iz - 1)],
                             vert_indices[(ix, iy - 0, iz - 0)],
                             vert_indices[(ix, iy - 1, iz - 0)],
                         ).swap(solid2))
-
+                      else:
+                        faces.append(Tri(
+                            vert_indices[(ix, iy - 1, iz - 1)],
+                            vert_indices[(ix, iy - 0, iz - 1)],
+                            vert_indices[(ix, iy - 1, iz - 0)],
+                        ).swap(solid2))
+                        faces.append(Tri(
+                            vert_indices[(ix, iy - 0, iz - 1)],
+                            vert_indices[(ix, iy - 0, iz - 0)],
+                            vert_indices[(ix, iy - 1, iz - 0)],
+                        ).swap(solid2))
     # Return a Mesh object containing the vertices and faces.
     return Mesh(vert_array, faces)
 
