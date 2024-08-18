@@ -7,26 +7,62 @@ import settings
 
 
 class QEF:
-    """Represents and solves the quadratic error function"""
+    """Represents and solves the Quadratic Error Function (QEF).
+
+    The QEF is used to find the best-fit point for a set of constraints in a least-squares sense.
+    It minimizes the error in a quadratic fashion, given by the equation || A * x - b ||^2.
+    """
+
     def __init__(self, A, b, fixed_values):
+        """
+        Initializes a QEF instance.
+
+        Parameters:
+        - A: The matrix representing the coefficients of the linear equations.
+        - b: The vector representing the right-hand side of the equations.
+        - fixed_values: List of fixed values for certain variables (if any).
+        """
         self.A = A
         self.b = b
         self.fixed_values = fixed_values
 
     def evaluate(self, x):
-        """Evaluates the function at a given point.
-        This is what the solve method is trying to minimize.
-        NB: Doesn't work with fixed axes."""
+        """
+        Evaluates the QEF at a given point.
+
+        Parameters:
+        - x: The point (vector) at which to evaluate the QEF.
+
+        Returns:
+        - float: The Euclidean norm of the difference between A*x and b, which is the error to minimize.
+        """
         x = numpy.array(x)
         return numpy.linalg.norm(numpy.matmul(self.A, x) - self.b)
 
     def eval_with_pos(self, x):
-        """Evaluates the QEF at a position, returning the same format solve does."""
+        """
+        Evaluates the QEF at a position and returns the result in the same format as solve().
+
+        Parameters:
+        - x: The position (vector) at which to evaluate the QEF.
+
+        Returns:
+        - tuple: A tuple containing the error and the position.
+        """
         return self.evaluate(x), x
 
     @staticmethod
     def make_2d(positions, normals):
-        """Returns a QEF that measures the the error from a bunch of normals, each emanating from given positions"""
+        """
+        Creates a QEF for a 2D problem.
+
+        Parameters:
+        - positions: List of 2D positions (vectors).
+        - normals: List of 2D normals (vectors) associated with the positions.
+
+        Returns:
+        - QEF: A QEF instance representing the 2D problem.
+        """
         A = numpy.array(normals)
         b = [v[0] * n[0] + v[1] * n[1] for v, n in zip(positions, normals)]
         fixed_values = [None] * A.shape[1]
@@ -34,31 +70,53 @@ class QEF:
 
     @staticmethod
     def make_3d(positions, normals):
-        """Returns a QEF that measures the the error from a bunch of normals, each emanating from given positions"""
+        """
+        Creates a QEF for a 3D problem.
+
+        Parameters:
+        - positions: List of 3D positions (vectors).
+        - normals: List of 3D normals (vectors) associated with the positions.
+
+        Returns:
+        - QEF: A QEF instance representing the 3D problem.
+        """
         A = numpy.array(normals)
         b = [v[0] * n[0] + v[1] * n[1] + v[2] * n[2] for v, n in zip(positions, normals)]
         fixed_values = [None] * A.shape[1]
         return QEF(A, b, fixed_values)
 
     def fix_axis(self, axis, value):
-        """Returns a new QEF that gives the same values as the old one, only with the position along the given axis
-        constrained to be value."""
-        # Pre-evaluate the fixed axis, adjusting b
+        """
+        Constrains a specific axis to a fixed value and returns a new QEF.
+
+        Parameters:
+        - axis: The index of the axis to be fixed (0 for x, 1 for y, 2 for z).
+        - value: The fixed value for the given axis.
+
+        Returns:
+        - QEF: A new QEF instance with the specified axis fixed.
+        """
+        # Adjust the right-hand side vector b to account for the fixed axis.
         b = self.b[:] - self.A[:, axis] * value
-        # Remove that axis from a
+        # Remove the fixed axis from matrix A.
         A = numpy.delete(self.A, axis, 1)
         fixed_values = self.fixed_values[:]
         fixed_values[axis] = value
         return QEF(A, b, fixed_values)
 
     def solve(self):
-        """Finds the point that minimizes the error of this QEF,
-        and returns a tuple of the error squared and the point itself"""
+        """
+        Solves the QEF to find the point that minimizes the error.
+
+        Returns:
+        - tuple: A tuple containing the residual error and the optimal point (vector).
+        """
         result, residual, rank, s = numpy.linalg.lstsq(self.A, self.b, rcond=None)
         if len(residual) == 0:
             residual = self.evaluate(result)
         else:
             residual = residual[0]
+        # Construct the final position vector by including fixed values.
         # Result only contains the solution for the unfixed axis,
         # we need to add back all the ones we previously fixed.
         position = []
@@ -73,6 +131,18 @@ class QEF:
 
 
 def solve_qef_2d(x, y, positions, normals):
+    """
+    Solves a 2D QEF problem to find the optimal point within a cell.
+
+    Parameters:
+    - x, y: Coordinates of the top-left corner of the cell.
+    - positions: List of 2D positions (vectors).
+    - normals: List of 2D normals (vectors) associated with the positions.
+
+    Returns:
+    - V2: The optimal 2D point (vector) within the cell.
+    """
+
     # The error term we are trying to minimize is sum( dot(x-v[i], n[i]) ^ 2)
     # This should be minimized over the unit square with top left point (x, y)
 
@@ -96,6 +166,8 @@ def solve_qef_2d(x, y, positions, normals):
 
         # Take a simple average of positions as the point we will
         # pull towards.
+
+        # Add bias normals to encourage the result to stay within the cell.
         mass_point = numpy.mean(positions, axis=0)
 
         normals.append([settings.BIAS_STRENGTH, 0])
@@ -104,17 +176,15 @@ def solve_qef_2d(x, y, positions, normals):
         positions.append(mass_point)
 
     qef = QEF.make_2d(positions, normals)
-
     residual, v = qef.solve()
 
     if settings.BOUNDARY:
         def inside(r):
             return x <= r[1][0] <= x + CELL_SIZE and y <= r[1][1] <= y + CELL_SIZE
 
-        # It's entirely possible that the best solution to the qef is not actually
-        # inside the cell.
+        # Check if the solution is within the cell. If not, constrain the QEF to the boundaries.
         if not inside((residual, v)):
-            # If so, we constrain the the qef to the horizontal and vertical
+            # We constrain the the QEF to the horizontal and vertical
             # lines bordering the cell, and find the best point of those
             r1 = qef.fix_axis(0, x + 0).solve()
             r2 = qef.fix_axis(0, x + CELL_SIZE).solve()
@@ -138,7 +208,7 @@ def solve_qef_2d(x, y, positions, normals):
             residual, v = min(rs)
 
     if settings.CLIP:
-        # Crudely force v to be inside the cell
+        # Ensure that the point remains within the cell boundaries.
         v[0] = numpy.clip(v[0], x, x + CELL_SIZE)
         v[1] = numpy.clip(v[1], y, y + CELL_SIZE)
 
@@ -146,6 +216,18 @@ def solve_qef_2d(x, y, positions, normals):
 
 
 def solve_qef_3d(x, y, z, positions, normals):
+    """
+    Solves a 3D QEF problem to find the optimal point within a cell.
+
+    Parameters:
+    - x, y, z: Coordinates of the corner of the cell.
+    - positions: List of 3D positions (vectors).
+    - normals: List of 3D normals (vectors) associated with the positions.
+
+    Returns:
+    - V3: The optimal 3D point (vector) within the cell.
+    """
+
     # The error term we are trying to minimize is sum( dot(x-v[i], n[i]) ^ 2)
     # This should be minimized over the unit square with top left point (x, y)
 
@@ -169,6 +251,8 @@ def solve_qef_3d(x, y, z, positions, normals):
 
         # Take a simple average of positions as the point we will
         # pull towards.
+
+        # Add bias normals to encourage the result to stay within the cell.
         mass_point = numpy.mean(positions, axis=0)
 
         normals.append([settings.BIAS_STRENGTH, 0, 0])
@@ -179,18 +263,17 @@ def solve_qef_3d(x, y, z, positions, normals):
         positions.append(mass_point)
 
     qef = QEF.make_3d(positions, normals)
-
     residual, v = qef.solve()
 
     if settings.BOUNDARY:
         def inside(r):
-            return x <= r[1][0] <= x + CELL_SIZE and y <= r[1][1] <= y + CELL_SIZE and z <= r[1][2] <= z + CELL_SIZE
+            return (x <= r[1][0] <= x + CELL_SIZE and
+                    y <= r[1][1] <= y + CELL_SIZE and
+                    z <= r[1][2] <= z + CELL_SIZE)
 
-        # It's entirely possible that the best solution to the qef is not actually
-        # inside the cell.
+        # Check if the solution is within the cell. If not, constrain the QEF to the cell boundaries.
         if not inside((residual, v)):
-            # If so, we constrain the the qef to the 6
-            # planes bordering the cell, and find the best point of those
+            # We constrain the QEF to the 6 planes bordering the cell, and find the best point of those.
             r1 = qef.fix_axis(0, x + 0).solve()
             r2 = qef.fix_axis(0, x + CELL_SIZE).solve()
             r3 = qef.fix_axis(1, y + 0).solve()
@@ -201,9 +284,8 @@ def solve_qef_3d(x, y, z, positions, normals):
             rs = list(filter(inside, [r1, r2, r3, r4, r5, r6]))
 
             if len(rs) == 0:
-                # It's still possible that those planes (which are infinite)
-                # cause solutions outside the box.
-                # So now try the 12 lines bordering the cell
+                # It's still possible that those planes (which are infinite) cause solutions outside the box.
+                # So now try the 12 lines bordering the cell.
                 r1  = qef.fix_axis(1, y + 0).fix_axis(0, x + 0).solve()
                 r2  = qef.fix_axis(1, y + CELL_SIZE).fix_axis(0, x + 0).solve()
                 r3  = qef.fix_axis(1, y + 0).fix_axis(0, x + CELL_SIZE).solve()
@@ -220,8 +302,7 @@ def solve_qef_3d(x, y, z, positions, normals):
                 rs = list(filter(inside, [r1, r2, r3, r4, r5, r6, r7, r8, r9, r10, r11, r12]))
 
             if len(rs) == 0:
-                # So finally, we evaluate which corner
-                # of the cell looks best
+                # Evaluate the corners of the cell if no suitable solution is found on the planes or lines.
                 r1 = qef.eval_with_pos((x + 0, y + 0, z + 0))
                 r2 = qef.eval_with_pos((x + 0, y + 0, z + CELL_SIZE))
                 r3 = qef.eval_with_pos((x + 0, y + CELL_SIZE, z + 0))
@@ -233,11 +314,11 @@ def solve_qef_3d(x, y, z, positions, normals):
 
                 rs = list(filter(inside, [r1, r2, r3, r4, r5, r6, r7, r8]))
 
-            # Pick the best of the available options
+            # Pick the best solution from the available options.
             residual, v = min(rs)
 
     if settings.CLIP:
-        # Crudely force v to be inside the cell
+        # Ensure that the point remains within the cell boundaries.
         v[0] = numpy.clip(v[0], x, x + CELL_SIZE)
         v[1] = numpy.clip(v[1], y, y + CELL_SIZE)
         v[2] = numpy.clip(v[2], z, z + CELL_SIZE)

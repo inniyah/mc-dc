@@ -1,38 +1,49 @@
-"""Provides a function for performing 3D Marching Cubes"""
+#!/usr/bin/env python3
+
+"""Provides functions for performing the 3D Marching Cubes algorithm.
+
+The Marching Cubes algorithm is a widely used technique for extracting a polygonal mesh 
+of an isosurface from a three-dimensional scalar field. This script includes functions 
+to perform the Marching Cubes algorithm on a grid of cells and generate meshes representing 
+the isosurface within a specified 3D region. It also includes utility functions to create 
+obj files for visualization.
+
+Importing necessary modules and defining constants:
+"""
 
 from common import adapt, frange
 from settings import XMIN, XMAX, YMIN, YMAX, ZMIN, ZMAX, CELL_SIZE
 import math
 from utils_3d import V3, Tri, Mesh, make_obj
 
-# My convention for vertices is:
+# Define the vertices of a unit cube in 3D space.
+# These vertices are used to define the corners of each cell in the grid.
 VERTICES = [
-    (0, 0, 0),
-    (1, 0, 0),
-    (1, 1, 0),
-    (0, 1, 0),
-    (0, 0, 1),
-    (1, 0, 1),
-    (1, 1, 1),
-    (0, 1, 1),
+    (0, 0, 0),  # Vertex 0
+    (1, 0, 0),  # Vertex 1
+    (1, 1, 0),  # Vertex 2
+    (0, 1, 0),  # Vertex 3
+    (0, 0, 1),  # Vertex 4
+    (1, 0, 1),  # Vertex 5
+    (1, 1, 1),  # Vertex 6
+    (0, 1, 1),  # Vertex 7
 ]
 
-
-# My convention for the edges
-
+# Define the edges of the unit cube by specifying pairs of vertices.
+# These edges are used to interpolate between vertices to find the boundary of the isosurface.
 EDGES = [
-    (0, 1),
-    (1, 2),
-    (2, 3),
-    (3, 0),
-    (4, 5),
-    (5, 6),
-    (6, 7),
-    (7, 4),
-    (0, 4),
-    (1, 5),
-    (2, 6),
-    (3, 7),
+    (0, 1),  # Edge 0
+    (1, 2),  # Edge 1
+    (2, 3),  # Edge 2
+    (3, 0),  # Edge 3
+    (4, 5),  # Edge 4
+    (5, 6),  # Edge 5
+    (6, 7),  # Edge 6
+    (7, 4),  # Edge 7
+    (0, 4),  # Edge 8
+    (1, 5),  # Edge 9
+    (2, 6),  # Edge 10
+    (3, 7),  # Edge 11
 ]
 
 # Table driven approach to the 256 combinations. Pro-tip, don't write this by hand, copy mine!
@@ -297,42 +308,58 @@ cases = [[],
  [[3, 0, 8]],
  []]
 
-
+# Function to perform Marching Cubes on a single cell of the grid.
 def marching_cubes_3d_single_cell(f, x, y, z):
-    # Evaluate f on each vertex of the cube
+    """
+    Perform the Marching Cubes algorithm on a single cube cell.
+
+    Parameters:
+    - f: Function to evaluate the scalar field at a given point.
+    - x, y, z: Coordinates of the lower-left corner of the cube cell.
+
+    Returns:
+    - Mesh: A Mesh object containing the vertices and triangles for the isosurface in the cell.
+    """
+    # Evaluate the function f at each vertex of the cube to determine if the vertex is inside or outside the isosurface.
     f_eval = [None] * 8
     for v in range(8):
         v_pos = VERTICES[v]
         f_eval[v] = f(x + v_pos[0] * CELL_SIZE,
                       y + v_pos[1] * CELL_SIZE,
                       z + v_pos[2] * CELL_SIZE)
-    # Determine which case we are
+
+    # Determine the index of the case based on which vertices are inside the isosurface.
     case = sum(2**v for v in range(8) if f_eval[v] > 0)
-    # Ok, what faces do we need (in terms of edges)
+
+    # Retrieve the faces (triangles) corresponding to this case from the lookup table.
     faces = cases[case]
 
     def edge_to_boundary_vertex(edge):
-        """Returns the vertex in the middle of the specified edge"""
-        # Find the two vertices specified by this edge, and interpolate between
-        # them according to adapt, as in the 2d case
+        """
+        Interpolate to find the vertex at the midpoint of the specified edge.
+
+        Parameters:
+        - edge: Index of the edge.
+
+        Returns:
+        - V3: The interpolated vertex position as a V3 object.
+        """
         v0, v1 = EDGES[edge]
         f0 = f_eval[v0]
         f1 = f_eval[v1]
-        t0 = CELL_SIZE - adapt(f0, f1)
-        t1 = CELL_SIZE - t0
+        t0 = CELL_SIZE - adapt(f0, f1)  # Calculate interpolation factor for vertex 0.
+        t1 = CELL_SIZE - t0            # Calculate interpolation factor for vertex 1.
         vert_pos0 = VERTICES[v0]
         vert_pos1 = VERTICES[v1]
         return V3(x + vert_pos0[0] * t0 + vert_pos1[0] * t1,
                   y + vert_pos0[1] * t0 + vert_pos1[1] * t1,
                   z + vert_pos0[2] * t0 + vert_pos1[2] * t1)
 
-    output_verts = []
-    output_tris = []
+    output_verts = []  # List to hold the vertices of the resulting mesh.
+    output_tris = []   # List to hold the triangles of the resulting mesh.
 
     for face in faces:
-        # For each face, find the vertices of that face, and output it.
-        # We make no effort to re-use vertices between multiple faces,
-        # A fancier implementation might do so.
+        # For each face (triangle) in the case, determine the vertices and create triangles.
         edges = face
         verts = list(map(edge_to_boundary_vertex, edges))
         next_vert_index = len(output_verts) + 1
@@ -347,11 +374,19 @@ def marching_cubes_3d_single_cell(f, x, y, z):
 
 
 def marching_cubes_3d(f, xmin=XMIN, xmax=XMAX, ymin=YMIN, ymax=YMAX, zmin=ZMIN, zmax=ZMAX):
-    """Iterates over a cells of size one between the specified range, and evaluates f to produce
-        a boundary by Marching Cubes. Returns a Mesh object."""
-    # For each cube, evaluate independently.
-    # If this wasn't demonstration code, you might actually evaluate them together for efficiency
-    mesh = Mesh()
+    """
+    Applies the Marching Cubes algorithm to a 3D grid within a specified range.
+
+    Parameters:
+    - f: Function to evaluate the scalar field.
+    - xmin, xmax, ymin, ymax, zmin, zmax: Bounds of the 3D grid.
+
+    Returns:
+    - Mesh: A Mesh object representing the isosurface in the specified 3D region.
+    """
+    mesh = Mesh()  # Initialize an empty Mesh object to store the final result.
+
+    # Iterate over the grid cells in the specified range.
     for x in frange(xmin, xmax, CELL_SIZE):
         for y in frange(ymin, ymax, CELL_SIZE):
             for z in frange(zmin, zmax, CELL_SIZE):
@@ -361,44 +396,69 @@ def marching_cubes_3d(f, xmin=XMIN, xmax=XMAX, ymin=YMIN, ymax=YMAX, zmin=ZMIN, 
 
 
 def circle_function(x, y, z):
+    """
+    Scalar field function representing a sphere.
+
+    Parameters:
+    - x, y, z: Coordinates.
+
+    Returns:
+    - float: Value of the scalar field at (x, y, z).
+    """
     return 2.5 - math.sqrt(x*x + y*y + z*z)
 
 
 def make_circle_obj(filename):
-    """Writes an obj file containing a sphere meshed via marching cubes"""
+    """
+    Writes an obj file containing a sphere mesh generated by the Marching Cubes algorithm.
+
+    Parameters:
+    - filename: Name of the output obj file.
+    """
     mesh = marching_cubes_3d(circle_function)
     with open(filename, "w") as f:
         make_obj(f, mesh)
 
 
 def make_cases_obj():
-    """Writes obj files demonstrating the main cases of marching cubes"""
+    """
+    Writes obj files demonstrating the main cases of the Marching Cubes algorithm.
+
+    Generates obj files for visualizing various cases to aid in understanding the algorithm.
+    """
     import marching_cubes_gen as gen
-    assert CELL_SIZE == 1
-    mesh = Mesh()
-    highlights = Mesh()
-    offset = V3(0, 0, 0)
+    assert CELL_SIZE == 1  # Ensure that the cell size is 1 for this demonstration.
+
+    mesh = Mesh()  # Initialize an empty Mesh object to store the cases.
+    highlights = Mesh()  # Initialize an empty Mesh object for highlighting vertices.
+    offset = V3(0, 0, 0)  # Offset for positioning the cases in the output file.
+
+    # Iterate over all base cases from the Marching Cubes generator.
     for bits, faces in sorted(gen.BASE_CASES.items()):
         verts = set(gen.bits_to_verts(bits))
 
-        # Run marching cubes for a just this case
+        # Create a function for this specific case where the scalar field is inside or outside the isosurface.
         def f(x, y, z):
             vert = gen.VERTICES.index((x, y, z))
             return 1 if vert in verts else -1
+
+        # Generate the mesh for this case and add it to the main mesh.
         case_mesh = marching_cubes_3d_single_cell(f, 0, 0, 0, cell_size=1)
         case_mesh = case_mesh.translate(offset)
         mesh.extend(case_mesh)
 
-        # Output the solid verts
+        # Highlight the solid vertices for visualization.
         highlight = Mesh([V3(*gen.VERTICES[v]) for v in verts], [])
         highlight = highlight.translate(offset)
         highlights.extend(highlight)
 
+        # Update the offset for the next case.
         offset.x += 1.5
         if offset.x > 6:
             offset.x = 0
             offset.y += 1.5
 
+    # Write the generated cases and highlights to obj files.
     with open("cases.obj", "w") as f:
         make_obj(f, mesh)
     with open("case_highlights.obj", "w") as f:
@@ -407,5 +467,7 @@ def make_cases_obj():
 __all__ = ["marching_cubes_3d"]
 
 if __name__ == "__main__":
+    # Generate an obj file for a sphere and save it.
     make_circle_obj("output.obj")
-    #make_cases_obj()
+    # Uncomment the line below to generate obj files demonstrating the Marching Cubes cases.
+    # make_cases_obj()

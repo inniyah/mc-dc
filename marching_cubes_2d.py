@@ -1,4 +1,6 @@
-"""Provides a function for performing 2D Marching Cubes"""
+#!/usr/bin/env python3
+
+"""Provides a function for performing 2D Marching Cubes algorithm to extract contour lines from scalar fields."""
 
 import math
 
@@ -8,80 +10,133 @@ from utils_2d import V2, make_svg
 
 
 def marching_cubes_2d_single_cell(f, x, y):
-    """Returns a list of edges that approximate f's boundary for a single cell"""
+    """
+    Computes the edges that approximate the boundary of a scalar field `f` for a single cell.
 
-    # Evaluate
-    x0y0 = f(x            , y )
-    x0y1 = f(x            , y + CELL_SIZE)
+    This function evaluates the scalar field at the four corners of the cell and determines
+    which edges should be drawn based on the sign of the field values (inside or outside).
+    The function uses the 2D Marching Cubes algorithm to approximate the contour lines.
+
+    Parameters:
+    f (function): A scalar field function that returns a positive value for points inside the shape
+                  and a negative value for points outside.
+    x, y (float): The bottom-left coordinates of the cell.
+
+    Returns:
+    list of Edge: A list of edges that represent the boundary within the cell.
+    """
+
+    # Evaluate the scalar field function at the four corners of the cell.
+    x0y0 = f(x, y)
+    x0y1 = f(x, y + CELL_SIZE)
     x1y0 = f(x + CELL_SIZE, y)
     x1y1 = f(x + CELL_SIZE, y + CELL_SIZE)
 
-    # There are 16 different cases that these points can be inside or outside.
-    # We use binary counting to map the 4 truth values to a number between 0 and 15 inclusive.
-    # It's even more in the 3d case!
+    # Determine the case index by treating each corner's inside/outside status as a bit in a 4-bit number.
+    # If a corner is inside (f > 0), its bit is set to 1; otherwise, it's set to 0.
     case = ((1 if x0y0 > 0 else 0) +
             (2 if x0y1 > 0 else 0) +
             (4 if x1y0 > 0 else 0) +
             (8 if x1y1 > 0 else 0))
 
-    # Several of the cases are inverses of each other where solid is non solid and visa versa
-    # They have the same boundary, which cuts down the cases a bit.
-    # But we swap the direction of the boundary, so that edges are always winding clockwise around the solid.
-    # Getting those swaps correct isn't needed for our simple visualizations, but is important in other uses cases
-    # particularly in 3d.
-
+    # There are 16 possible cases for the corners' inside/outside status (from 0 to 15).
+    # Cases with all corners inside or all corners outside (0 or 15) have no boundary.
     if case == 0 or case == 15:
-        # All outside / inside
         return []
-    if case == 1 or case == 14:
-        # Single corner
-        return [Edge(V2(x + 0 + adapt(x0y0, x1y0), y), V2(x + 0, y + adapt(x0y0, x0y1))).swap(case == 14)]
-    if case == 2 or case == 13:
-        # Single corner
-        return [Edge(V2(x + 0, y + adapt(x0y0, x0y1)), V2(x + adapt(x0y1, x1y1), y + CELL_SIZE)).swap(case == 13)]
-    if case == 4 or case == 11:
-        # Single corner
-        return [Edge(V2(x + CELL_SIZE, y + adapt(x1y0, x1y1)), V2(x + adapt(x0y0, x1y0), y + 0)).swap(case == 11)]
-    if case == 8 or case == 7:
-        # Single corner
-        return [Edge(V2(x + adapt(x0y1, x1y1), y + CELL_SIZE), V2(x + CELL_SIZE, y + adapt(x1y0, x1y1))).swap(case == 7)]
-    if case == 3 or case == 12:
-        # Vertical split
-        return [Edge(V2(x + adapt(x0y0, x1y0), y + 0), V2(x + adapt(x0y1, x1y1), y + CELL_SIZE)).swap(case == 12)]
-    if case == 5 or case == 10:
-        # Horizontal split
-        return [Edge(V2(x + 0, y + adapt(x0y0, x0y1)), V2(x + CELL_SIZE, y + adapt(x1y0, x1y1))).swap(case == 5)]
-    if case == 9:
-        # Two opposite corners, copy cases 1 and 8
-        return [Edge(V2(x + 0 + adapt(x0y0, x1y0), y), V2(x + 0, y + adapt(x0y0, x0y1))),
-                Edge(V2(x + adapt(x0y1, x1y1), y + 1), V2(x + CELL_SIZE, y + adapt(x1y0, x1y1)))]
-    if case == 6:
-        # Two opposite corners, copy cases 2 and 4
-        return [Edge(V2(x + CELL_SIZE, y+adapt(x1y0, x1y1)), V2(x+adapt(x0y0, x1y0), y + 0)),
-                Edge(V2(x + 0, y+adapt(x0y0, x0y1)), V2(x + adapt(x0y1, x1y1), y + CELL_SIZE))]
 
-    assert False, "All cases exhausted"
+    # Single corner inside/outside (cases 1, 2, 4, 8) creates one edge.
+    if case == 1 or case == 14:
+        return [Edge(V2(x + adapt(x0y0, x1y0), y), V2(x, y + adapt(x0y0, x0y1))).swap(case == 14)]
+    if case == 2 or case == 13:
+        return [Edge(V2(x, y + adapt(x0y0, x0y1)), V2(x + adapt(x0y1, x1y1), y + CELL_SIZE)).swap(case == 13)]
+    if case == 4 or case == 11:
+        return [Edge(V2(x + CELL_SIZE, y + adapt(x1y0, x1y1)), V2(x + adapt(x0y0, x1y0), y)).swap(case == 11)]
+    if case == 8 or case == 7:
+        return [Edge(V2(x + adapt(x0y1, x1y1), y + CELL_SIZE), V2(x + CELL_SIZE, y + adapt(x1y0, x1y1))).swap(case == 7)]
+
+    # Vertical split (cases 3 and 12) creates one vertical edge.
+    if case == 3 or case == 12:
+        return [Edge(V2(x + adapt(x0y0, x1y0), y), V2(x + adapt(x0y1, x1y1), y + CELL_SIZE)).swap(case == 12)]
+
+    # Horizontal split (cases 5 and 10) creates one horizontal edge.
+    if case == 5 or case == 10:
+        return [Edge(V2(x, y + adapt(x0y0, x0y1)), V2(x + CELL_SIZE, y + adapt(x1y0, x1y1))).swap(case == 5)]
+
+    # Two opposite corners inside/outside (cases 6 and 9) create two edges forming an "X" pattern.
+    if case == 9:
+        return [Edge(V2(x + adapt(x0y0, x1y0), y), V2(x, y + adapt(x0y0, x0y1))),
+                Edge(V2(x + adapt(x0y1, x1y1), y + CELL_SIZE), V2(x + CELL_SIZE, y + adapt(x1y0, x1y1)))]
+    if case == 6:
+        return [Edge(V2(x + CELL_SIZE, y + adapt(x1y0, x1y1)), V2(x + adapt(x0y0, x1y0), y)),
+                Edge(V2(x, y + adapt(x0y0, x0y1)), V2(x + adapt(x0y1, x1y1), y + CELL_SIZE))]
+
+    assert False, "All cases should be handled by the previous conditionals"
 
 
 def marching_cubes_2d(f, xmin=XMIN, xmax=XMAX, ymin=YMIN, ymax=YMAX):
-    # For each cube, evaluate independently.
-    # If this wasn't demonstration code, you might actually evaluate them together for efficiency
-    edges = []
+    """
+    Applies the 2D Marching Cubes algorithm over a grid to generate contour lines.
+
+    This function iterates over each cell in the grid defined by the specified bounds,
+    applies the Marching Cubes algorithm to each cell, and collects all the resulting edges.
+
+    Parameters:
+    f (function): The scalar field function to evaluate.
+    xmin, xmax (float): The x-coordinate bounds of the grid.
+    ymin, ymax (float): The y-coordinate bounds of the grid.
+
+    Returns:
+    list of Edge: A list of all edges that approximate the boundary of the scalar field in the grid.
+    """
+    edges = []  # List to store all edges generated by the algorithm
     for x in frange(xmin, xmax, CELL_SIZE):
         for y in frange(ymin, ymax, CELL_SIZE):
-            edges.extend(marching_cubes_2d_single_cell(f, x, y))
+            edges.extend(marching_cubes_2d_single_cell(f, x, y))  # Process each cell independently
     return edges
 
 
 def circle_function(x, y):
+    """
+    Defines a scalar field representing a circle of radius 2.5 centered at the origin.
+
+    This is an example of a scalar field function used to demonstrate the Marching Cubes algorithm.
+
+    Parameters:
+    x, y (float): The coordinates to evaluate.
+
+    Returns:
+    float: Positive inside the circle, negative outside.
+    """
     return 2.5 - math.sqrt(x*x + y*y)
 
 
 def square_function(x, y):
+    """
+    Defines a scalar field representing a square with side length 5 centered at the origin.
+
+    This is another example of a scalar field function for demonstration.
+
+    Parameters:
+    x, y (float): The coordinates to evaluate.
+
+    Returns:
+    float: Positive inside the square, negative outside.
+    """
     return 2.5 - max(abs(x), abs(y))
 
 
 def t_shape_function(x, y):
+    """
+    Defines a scalar field representing a simple T-shape.
+
+    This function is used to demonstrate how the algorithm handles more complex shapes.
+
+    Parameters:
+    x, y (float): The coordinates to evaluate.
+
+    Returns:
+    float: Positive inside the T-shape, negative outside.
+    """
     if (x, y) in ((0, 0), (0, 1), (0, -1), (1, 0)):
         return 1
     return -1
@@ -89,6 +144,7 @@ def t_shape_function(x, y):
 __all__ = ["marching_cubes_2d"]
 
 if __name__ == "__main__":
+    # Example usage: generate the contour of a circle and save it as an SVG file.
     edges = marching_cubes_2d(circle_function)
     with open("example.svg", "w") as file:
         make_svg(file, edges, circle_function)
