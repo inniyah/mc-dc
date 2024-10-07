@@ -3,6 +3,8 @@ triangles, quadrilaterals, and mesh handling."""
 
 import math
 
+from typing import Callable, List, Union, Optional
+
 class V3:
     """A vector in 3D space, representing a point or direction.
 
@@ -11,12 +13,12 @@ class V3:
     y (float): The y-coordinate of the vector.
     z (float): The z-coordinate of the vector.
     """
-    def __init__(self, x, y, z):
+    def __init__(self, x: float, y: float, z: float) -> None:
         self.x = x
         self.y = y
         self.z = z
 
-    def normalize(self):
+    def normalize(self) -> 'V3':
         """Normalize the vector to unit length.
 
         This method scales the vector so that its magnitude becomes 1, but its direction remains the same.
@@ -24,7 +26,7 @@ class V3:
         Returns:
         V3: A new normalized vector.
         """
-        d = math.sqrt(self.x*self.x + self.y*self.y + self.z*self.z)
+        d = math.sqrt(self.x * self.x + self.y * self.y + self.z * self.z)
         return V3(self.x / d, self.y / d, self.z / d)
 
 
@@ -36,12 +38,12 @@ class Tri:
     v2 (V3): The second vertex of the triangle.
     v3 (V3): The third vertex of the triangle.
     """
-    def __init__(self, v1, v2, v3):
+    def __init__(self, v1: V3, v2: V3, v3: V3) -> None:
         self.v1 = v1
         self.v2 = v2
         self.v3 = v3
 
-    def map(self, f):
+    def map(self, f: Callable[[V3], V3]) -> 'Tri':
         """Apply a function to each vertex of the triangle.
 
         This method is useful for transforming the vertices, such as by applying a translation or scaling.
@@ -54,7 +56,7 @@ class Tri:
         """
         return Tri(f(self.v1), f(self.v2), f(self.v3))
 
-    def swap(self, swap=True):
+    def swap(self, swap: bool = True) -> 'Tri':
         """Optionally reverses the vertex order of the triangle.
 
         Reversing the order of the vertices changes the orientation of the triangle, 
@@ -64,12 +66,13 @@ class Tri:
         swap (bool): If True, the vertices are reversed.
 
         Returns:
-        Tri: The original or reversed quadrilateral, depending on the `swap` parameter.
+        Tri: The original or reversed triangle, depending on the `swap` parameter.
         """
         if swap:
             return Tri(self.v3, self.v2, self.v1)
         else:
             return Tri(self.v1, self.v2, self.v3)
+
 
 class Quad:
     """A 3D quadrilateral defined by four vertices.
@@ -80,13 +83,13 @@ class Quad:
     v3 (V3): The third vertex of the quadrilateral.
     v4 (V3): The fourth vertex of the quadrilateral.
     """
-    def __init__(self, v1, v2, v3, v4):
+    def __init__(self, v1: V3, v2: V3, v3: V3, v4: V3) -> None:
         self.v1 = v1
         self.v2 = v2
         self.v3 = v3
         self.v4 = v4
 
-    def map(self, f):
+    def map(self, f: Callable[[V3], V3]) -> 'Quad':
         """Apply a function to each vertex of the quadrilateral.
 
         This method is useful for transforming the vertices, such as by applying a translation or scaling.
@@ -99,7 +102,7 @@ class Quad:
         """
         return Quad(f(self.v1), f(self.v2), f(self.v3), f(self.v4))
 
-    def swap(self, swap=True):
+    def swap(self, swap: bool = True) -> 'Quad':
         """Optionally reverses the vertex order of the quadrilateral.
 
         Reversing the order of the vertices changes the orientation of the quadrilateral, 
@@ -124,11 +127,11 @@ class Mesh:
     verts (list of V3): The vertices of the mesh.
     faces (list of Tri or Quad): The faces of the mesh, each defined by vertices.
     """
-    def __init__(self, verts=None, faces=None):
-        self.verts = verts or []
-        self.faces = faces or []
+    def __init__(self, verts: Optional[List[V3]] = None, faces: Optional[List[Union[Tri, Quad]]] = None) -> None:
+        self.verts: List[V3] = verts or []
+        self.faces: List[Union[Tri, Quad]] = faces or []
 
-    def extend(self, other):
+    def extend(self, other: 'Mesh') -> None:
         """Extend the current mesh by adding vertices and faces from another mesh.
 
         This method is useful for combining multiple meshes into one.
@@ -141,7 +144,7 @@ class Mesh:
         self.verts.extend(other.verts)
         self.faces.extend(face.map(f) for face in other.faces)
 
-    def __add__(self, other):
+    def __add__(self, other: 'Mesh') -> 'Mesh':
         """Define the addition operator for Mesh objects, allowing for mesh concatenation.
 
         This method creates a new mesh that is the result of adding two meshes together.
@@ -157,7 +160,7 @@ class Mesh:
         r.extend(other)
         return r
 
-    def translate(self, offset):
+    def translate(self, offset: V3) -> 'Mesh':
         """Translate (move) the entire mesh by a given offset.
 
         This method creates a new mesh where each vertex is translated by the given vector.
@@ -172,7 +175,7 @@ class Mesh:
         return Mesh(new_verts, self.faces)
 
 
-def make_obj(f, mesh):
+def make_obj(f: 'IO[str]', mesh: Mesh) -> None:
     """Export the mesh to a Wavefront OBJ file format.
 
     This function writes the vertices and faces of the mesh to a file in the OBJ format,

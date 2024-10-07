@@ -2,10 +2,13 @@
 
 from settings import XMIN, XMAX, YMIN, YMAX, CELL_SIZE, EPS
 from common import frange
+
 import math
 
+from typing import List, Callable, Dict, Any, TextIO
+
 class V2:
-    def __init__(self, x, y):
+    def __init__(self, x: float, y: float) -> None:
         """
         Initializes a 2D vector (V2) with x and y coordinates.
 
@@ -13,10 +16,10 @@ class V2:
         x (float): The x-coordinate of the vector.
         y (float): The y-coordinate of the vector.
         """
-        self.x = x
-        self.y = y
+        self.x: float = x
+        self.y: float = y
 
-    def normalize(self):
+    def normalize(self) -> 'V2':
         """
         Returns a normalized version of the vector (unit vector) that maintains the
         direction of the original vector but scales its length to 1.
@@ -24,15 +27,12 @@ class V2:
         Returns:
         V2: A new V2 object representing the normalized vector.
         """
-        d = math.sqrt(self.x * self.x + self.y * self.y)  # Calculate the magnitude (length) of the vector
+        d: float = math.sqrt(self.x * self.x + self.y * self.y)  # Calculate the magnitude (length) of the vector
         return V2(self.x / d, self.y / d)  # Divide each component by the magnitude to normalize
 
-def element(e, **kwargs):
+def element(e: str, **kwargs: Dict[str, Any]) -> str:
     """
     Utility function to generate an SVG element string with attributes.
-
-    This function is used to create XML-like strings representing SVG elements, such as rectangles,
-    circles, and lines, with specified attributes.
 
     Parameters:
     e (str): The name of the SVG element (e.g., 'rect', 'circle', 'line').
@@ -41,13 +41,13 @@ def element(e, **kwargs):
     Returns:
     str: A string representing the SVG element with its attributes.
     """
-    s = "<" + e
+    s: str = "<" + e
     for key, value in kwargs.items():
         s += " {}='{}'".format(key, value)  # Add each attribute to the element string
     s += "/>\n"
     return s
 
-def make_svg(file, edges, f):
+def make_svg(file: TextIO, edges: List['Edge'], f: Callable[[float, float], float]) -> None:
     """
     Writes an SVG file that visually represents the mesh and scalar field.
 
@@ -66,7 +66,7 @@ def make_svg(file, edges, f):
     - Draws the edges that form the mesh.
     - Highlights the vertices of the edges with red squares.
     """
-    scale = 50  # Scale factor for the SVG image to make it visually clear
+    scale: int = 50  # Scale factor for the SVG image to make it visually clear
     file.write("<?xml version='1.0' encoding='UTF-8'?>\n")  # Start of the SVG file with XML declaration
     file.write("<svg version='1.1' xmlns='http://www.w3.org/2000/svg' viewBox='{} {} {} {}'>\n".format(
         XMIN * scale, YMIN * scale, (XMAX - XMIN) * scale, (YMAX - YMIN) * scale))  # Define the SVG canvas
@@ -82,8 +82,8 @@ def make_svg(file, edges, f):
     # Draw circles at grid points, filled or unfilled based on the scalar field function f
     for x in frange(XMIN, XMAX + CELL_SIZE, CELL_SIZE):
         for y in frange(YMIN, YMAX + CELL_SIZE, CELL_SIZE):
-            is_solid = f(x, y) > 0  # Determine if the point is inside the surface
-            fill_color = ("black" if is_solid else "white")  # Black for inside, white for outside
+            is_solid: bool = f(x, y) > 0  # Determine if the point is inside the surface
+            fill_color: str = "black" if is_solid else "white"  # Black for inside, white for outside
             file.write(element("circle", cx=x, cy=y, r=0.05,
                                style="stroke: black; stroke-width: 0.02; fill: " + fill_color))
 
@@ -93,7 +93,7 @@ def make_svg(file, edges, f):
                            style='stroke:rgb(255,0,0);stroke-width:0.04'))
 
     # Highlight the vertices of the edges with red squares for better visibility
-    r = 0.05  # Half of the square's side length
+    r: float = 0.05  # Half of the square's side length
     for v in [v for edge in edges for v in (edge.v1, edge.v2)]:
         file.write(element("rect", x=(v.x - r), y=(v.y - r), width=2 * r, height=2 * r,
                            style='fill: red'))

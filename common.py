@@ -2,19 +2,20 @@
 
 import settings
 
+from typing import Union, Generator
+
 class Edge:
-    def __init__(self, v1, v2):
+    def __init__(self, v1: Union['V2', 'V3'], v2: Union['V2', 'V3']) -> None:
         """
         Initializes an Edge object with two vertices, v1 and v2.
 
         Parameters:
         v1, v2: These are the vertices that define the endpoints of the edge.
-        Vertices are typically represented as tuples or coordinate pairs in a 2D or 3D space.
         """
         self.v1 = v1
         self.v2 = v2
 
-    def swap(self, swap=True):
+    def swap(self, swap: bool = True) -> 'Edge':
         """
         Returns a new Edge object with its vertices swapped if the swap parameter is True.
 
@@ -30,7 +31,7 @@ class Edge:
         else:
             return Edge(self.v1, self.v2)
 
-def adapt(v0, v1):
+def adapt(v0: float, v1: float) -> float:
     """
     Calculates the interpolation factor between two scalar values, v0 and v1, needed to reach zero.
 
@@ -53,7 +54,7 @@ def adapt(v0, v1):
     else:
         return 0.5 * settings.CELL_SIZE
 
-def frange(start, stop, step=1):
+def frange(start: float, stop: float, step: float = 1) -> Generator[float, None, None]:
     """
     Generates a range of floating-point numbers from start to stop, incrementing by step.
 

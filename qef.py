@@ -3,8 +3,10 @@ import numpy.linalg
 
 from utils_2d import V2
 from utils_3d import V3
+
 import settings
 
+from typing import List, Optional, Tuple
 
 class QEF:
     """Represents and solves the Quadratic Error Function (QEF).
@@ -13,7 +15,7 @@ class QEF:
     It minimizes the error in a quadratic fashion, given by the equation || A * x - b ||^2.
     """
 
-    def __init__(self, A, b, fixed_values):
+    def __init__(self, A: numpy.ndarray, b: List[float], fixed_values: List[Optional[float]]) -> None:
         """
         Initializes a QEF instance.
 
@@ -26,7 +28,7 @@ class QEF:
         self.b = b
         self.fixed_values = fixed_values
 
-    def evaluate(self, x):
+    def evaluate(self, x: List[float]) -> float:
         """
         Evaluates the QEF at a given point.
 
@@ -39,7 +41,7 @@ class QEF:
         x = numpy.array(x)
         return numpy.linalg.norm(numpy.matmul(self.A, x) - self.b)
 
-    def eval_with_pos(self, x):
+    def eval_with_pos(self, x: List[float]) -> Tuple[float, List[float]]:
         """
         Evaluates the QEF at a position and returns the result in the same format as solve().
 
@@ -52,7 +54,7 @@ class QEF:
         return self.evaluate(x), x
 
     @staticmethod
-    def make_2d(positions, normals):
+    def make_2d(positions: List[List[float]], normals: List[List[float]]) -> 'QEF':
         """
         Creates a QEF for a 2D problem.
 
@@ -69,7 +71,7 @@ class QEF:
         return QEF(A, b, fixed_values)
 
     @staticmethod
-    def make_3d(positions, normals):
+    def make_3d(positions: List[List[float]], normals: List[List[float]]) -> 'QEF':
         """
         Creates a QEF for a 3D problem.
 
@@ -85,7 +87,7 @@ class QEF:
         fixed_values = [None] * A.shape[1]
         return QEF(A, b, fixed_values)
 
-    def fix_axis(self, axis, value):
+    def fix_axis(self, axis: int, value: float) -> 'QEF':
         """
         Constrains a specific axis to a fixed value and returns a new QEF.
 
@@ -104,7 +106,7 @@ class QEF:
         fixed_values[axis] = value
         return QEF(A, b, fixed_values)
 
-    def solve(self):
+    def solve(self) -> Tuple[float, List[float]]:
         """
         Solves the QEF to find the point that minimizes the error.
 
@@ -130,7 +132,7 @@ class QEF:
         return residual, position
 
 
-def solve_qef_2d(x, y, positions, normals):
+def solve_qef_2d(x: float, y: float, positions: List[List[float]], normals: List[List[float]]) -> V2:
     """
     Solves a 2D QEF problem to find the optimal point within a cell.
 
@@ -169,7 +171,6 @@ def solve_qef_2d(x, y, positions, normals):
 
         # Add bias normals to encourage the result to stay within the cell.
         mass_point = numpy.mean(positions, axis=0)
-
         normals.append([settings.BIAS_STRENGTH, 0])
         positions.append(mass_point)
         normals.append([0, settings.BIAS_STRENGTH])
@@ -179,7 +180,7 @@ def solve_qef_2d(x, y, positions, normals):
     residual, v = qef.solve()
 
     if settings.BOUNDARY:
-        def inside(r):
+        def inside(r: Tuple[float, List[float]]) -> bool:
             return x <= r[1][0] <= x + CELL_SIZE and y <= r[1][1] <= y + CELL_SIZE
 
         # Check if the solution is within the cell. If not, constrain the QEF to the boundaries.
@@ -215,7 +216,7 @@ def solve_qef_2d(x, y, positions, normals):
     return V2(v[0], v[1])
 
 
-def solve_qef_3d(x, y, z, positions, normals):
+def solve_qef_3d(x: float, y: float, z: float, positions: List[List[float]], normals: List[List[float]]) -> V3:
     """
     Solves a 3D QEF problem to find the optimal point within a cell.
 
@@ -254,7 +255,6 @@ def solve_qef_3d(x, y, z, positions, normals):
 
         # Add bias normals to encourage the result to stay within the cell.
         mass_point = numpy.mean(positions, axis=0)
-
         normals.append([settings.BIAS_STRENGTH, 0, 0])
         positions.append(mass_point)
         normals.append([0, settings.BIAS_STRENGTH, 0])
@@ -266,7 +266,7 @@ def solve_qef_3d(x, y, z, positions, normals):
     residual, v = qef.solve()
 
     if settings.BOUNDARY:
-        def inside(r):
+        def inside(r: Tuple[float, List[float]]) -> bool:
             return (x <= r[1][0] <= x + CELL_SIZE and
                     y <= r[1][1] <= y + CELL_SIZE and
                     z <= r[1][2] <= z + CELL_SIZE)
